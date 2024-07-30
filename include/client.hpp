@@ -7,6 +7,12 @@
 #include "order.hpp"
 #include "state.hpp"
 
+struct UiState {
+    enum class PlanetTab {Organization, Demographics, Millitary} planet_tab;
+    std::unordered_set<EntityID> selected;
+    std::optional<sf::Vector2f> selection_start;
+    sf::View camera;
+};
 
 class Client {
 public:
@@ -26,9 +32,7 @@ private:
     // send order to server
     void send_order(Order order);
     GameState state;
-    std::unordered_set<EntityID> selected;
-    std::optional<sf::Vector2f> selection_start;
-    sf::View camera;
+    UiState ui_state;
     sf::TcpSocket server;
     sf::RenderWindow window;
 };

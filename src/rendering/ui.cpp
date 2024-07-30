@@ -96,6 +96,12 @@ sf::FloatRect Ui::pixel_to_ui_rect(sf::FloatRect rect) {
     };
 }
 
+float Ui::get_aspect_ratio() {
+    sf::FloatRect bounds = local_to_global_bounds({0,0,1,1});
+    return bounds.width / bounds.height;
+}
+
+
 sf::FloatRect Ui::local_to_global_bounds(sf::FloatRect bounds) {
     sf::FloatRect r = {0, 0, 1, 1};
 

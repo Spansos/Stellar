@@ -10,7 +10,7 @@ Client::Client(sf::IpAddress server_address, int server_port) {
         ERROR_PRINT("couldn't connect to " + server_address.toString() + ":" + std::to_string(server_port));
     INFO_PRINT("connected to server: " + server.getRemoteAddress().toString() + ":" + std::to_string(server.getRemotePort()));
     window.create({1024, 720}, "Stellarium");
-    camera = window.getDefaultView();
+    ui_state.camera = window.getDefaultView();
     window.setFramerateLimit(60);
 }
 
@@ -35,7 +35,7 @@ std::vector<sf::Event> Client::get_input() {
                 window.close();
                 break;
             case sf::Event::Resized:
-                camera.setSize(sf::Vector2f{window.getSize()});
+                ui_state.camera.setSize(sf::Vector2f{window.getSize()});
             default:
                 break;
         }
@@ -55,61 +55,94 @@ std::vector<Order> Client::render_ui(const std::vector<sf::Event> & events) {
     window.setView(sf::View{{{0, 0}, sf::Vector2f{window.getSize()}}});
 
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
-        camera.move({0, -1});
+        ui_state.camera.move({0, -1});
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
-        camera.move({-1, 0});
+        ui_state.camera.move({-1, 0});
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
-        camera.move({0, 1});
+        ui_state.camera.move({0, 1});
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::D))
-        camera.move({1, 0});
+        ui_state.camera.move({1, 0});
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-        camera.zoom(.95);
+        ui_state.camera.zoom(.95);
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-        camera.zoom(1.05);
+        ui_state.camera.zoom(1.05);
 
     sf::Vector2f mouse_pos = sf::Vector2f{sf::Mouse::getPosition(window)};
 
     for (const auto & event : events) {
         if (event.type == sf::Event::MouseButtonPressed)
             if (event.mouseButton.button == sf::Mouse::Button::Left)
-                selection_start = mouse_pos;
+                ui_state.selection_start = mouse_pos;
         if (event.type == sf::Event::MouseButtonReleased)
             if (event.mouseButton.button == sf::Mouse::Button::Left)
-                selection_start = {};
+                ui_state.selection_start = {};
         if (event.type == event.MouseWheelScrolled)
-            camera.zoom(1 - event.mouseWheelScroll.delta * 0.05);
+            ui_state.camera.zoom(1 - event.mouseWheelScroll.delta * 0.05);
     }
     
-    if (selection_start) {
-        sf::FloatRect selection_rect = {selection_start.value(), mouse_pos-selection_start.value()};
+    if (ui_state.selection_start) {
+        sf::FloatRect selection_rect = {ui_state.selection_start.value(), mouse_pos-ui_state.selection_start.value()};
         ui.draw_box(ui.pixel_to_ui_rect(selection_rect), sf::Color::Transparent, sf::Color{160, 160, 160}, -1);
 
-        selected.clear();
+        ui_state.selected.clear();
         for (auto & entry : state.entities) {
             if (!entry.pointer) continue;
             if (entry.pointer->get_type() == EntityType::Planet) {
-                if (selection_rect.contains(entry.pointer->get_property(Planet::POSITION).Vector2f - camera.getCenter()+camera.getSize()/2.0f)) {
-                    selected.clear();
-                    selected.insert(entry.pointer->get_id());
+                if (selection_rect.contains(entry.pointer->get_property(Planet::POSITION).Vector2f - ui_state.camera.getCenter()+ui_state.camera.getSize()/2.0f)) {
+                    ui_state.selected.clear();
+                    ui_state.selected.insert(entry.pointer->get_id());
                     break;
                 }
             } else if (entry.pointer->get_type() == EntityType::Ship) {
-                if (selection_rect.contains(entry.pointer->get_property(Ship::POSITION).Vector2f - camera.getCenter()+camera.getSize()/2.0f))
-                    selected.insert(entry.pointer->get_id());
+                if (selection_rect.contains(entry.pointer->get_property(Ship::POSITION).Vector2f - ui_state.camera.getCenter()+ui_state.camera.getSize()/2.0f))
+                    ui_state.selected.insert(entry.pointer->get_id());
             }
         }
     }
 
 
 
-    sf::FloatRect frame{.05, .05, .3f, .2f};
-    ui.draw_box(frame, {48, 64, 128});
+    sf::FloatRect frame{.05, .65, .4f, .3f};
     ui.start_frame(frame);
     {
-        ui.draw_text({0, 0, 1, .5}, .1f, "hello greetings fellow me i hope the this works first try else i WILL have to debug thios shit, which is an activity which is my hobby so im actually quite neutral about the whole thing", sf::Color::White);
-        ui.draw_button({0.4, .6, .2, .2}, {64, 64, 64}, {128, 128, 128}, {48, 48, 48});
-        if (ui.is_button_pressed({0.4, .6, .2, .2},events))
-            std::cout << "BUTTTONON" << std::endl;
+        const float button_size = .1;
+        const sf::FloatRect org_button = {.0, .0, button_size, button_size};
+        const sf::FloatRect demo_button = {button_size, .0, button_size, button_size};
+        const sf::FloatRect mill_button = {button_size*2, .0, button_size, button_size};
+        ui.draw_button(org_button, {48, 128, 64}, {64, 156, 128}, {48, 48, 48});
+        if (ui.is_button_pressed(org_button, events))
+            ui_state.planet_tab = UiState::PlanetTab::Organization;
+        ui.draw_button(demo_button, {64, 48, 128}, {128, 64, 156}, {48, 48, 48});
+        if (ui.is_button_pressed(demo_button, events))
+            ui_state.planet_tab = UiState::PlanetTab::Demographics;
+        ui.draw_button(mill_button, {128, 64, 48}, {156, 128, 64}, {48, 48, 48});
+        if (ui.is_button_pressed(mill_button, events))
+            ui_state.planet_tab = UiState::PlanetTab::Millitary;
+
+        sf::FloatRect frame{0, button_size, 1, 1-button_size};
+        ui.start_frame(frame);
+        {
+            switch (ui_state.planet_tab) {
+                case UiState::PlanetTab::Organization:
+                    ui.draw_box({0,0,1,1}, sf::Color::Green);
+                    for (int i=0; i<50; ++i) {
+                        const sf::Vector2f slot_size = {.1,.2};
+                        const float slot_padding = .05;
+                        const sf::FloatRect org_slot = {(i%10)*(slot_size.x+slot_padding), (i/10)*(slot_size.y+slot_padding), slot_size.x, slot_size.y};
+                        ui.draw_box(org_slot, (!(i%10%2) != !(i/10%2)) ? sf::Color{255, 0, 0, 128} : sf::Color{0, 0, 255, 128});
+
+                    }
+
+                    break;
+                case UiState::PlanetTab::Demographics:
+                    ui.draw_box({0,0,1,1}, sf::Color::Blue);
+                    break;
+                case UiState::PlanetTab::Millitary:
+                    ui.draw_box({0,0,1,1}, sf::Color::Red);
+                    break;
+            }
+        }
+        ui.end_frame();
     }
     ui.end_frame();
 
@@ -136,7 +169,7 @@ void Client::listen_to_server() {
 
 void Client::render_game() {
     // game is rendered with game camera
-    window.setView(camera);
+    window.setView(ui_state.camera);
 
     window.clear(sf::Color{16, 16, 24});
 
@@ -152,7 +185,7 @@ void Client::render_game() {
                 shape.setFillColor(sf::Color::Red);
                 shape.setPosition(ship.get_property(Ship::POSITION).Vector2f - sf::Vector2f(16,16));
                 shape.setOutlineColor(sf::Color::White);
-                if (selected.find(ship.get_id()) != selected.end())
+                if (ui_state.selected.find(ship.get_id()) != ui_state.selected.end())
                     shape.setOutlineThickness(-2);
                 else
                     shape.setOutlineThickness(0);
@@ -168,7 +201,7 @@ void Client::render_game() {
                 shape.setFillColor(sf::Color::Blue);
                 shape.setPosition(planet.get_property(Planet::POSITION).Vector2f - sf::Vector2f(32,32));
                 shape.setOutlineColor(sf::Color::White);
-                if (selected.find(planet.get_id()) != selected.end())
+                if (ui_state.selected.find(planet.get_id()) != ui_state.selected.end())
                     shape.setOutlineThickness(-2);
                 else
                     shape.setOutlineThickness(0);

@@ -15,6 +15,7 @@ public:
     void end_frame();
     sf::Vector2f pixel_to_ui_coords(sf::Vector2f position);
     sf::FloatRect pixel_to_ui_rect(sf::FloatRect rect);
+    float get_aspect_ratio();
 private:
     sf::FloatRect local_to_global_bounds(sf::FloatRect bounds);
     std::vector<sf::FloatRect> bounds_stack;
